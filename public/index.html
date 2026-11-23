@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>PTT + GPS v3.0 AuraFlow Radio | Walkie-Talkie Táctico & Radar GPS en Tiempo Real</title>
+  <meta name="description" content="Plataforma web de radio Push-To-Talk (PTT) de baja latencia con canales encriptados, indicativos (Callsigns) y radar GPS en tiempo real por AuraFlow Tech Costa Rica." />
+  <meta property="og:title" content="PTT + GPS v3.0 AuraFlow Radio — Walkie-Talkie Táctico & Radar GPS" />
+  <meta property="og:description" content="Canales de voz Push-To-Talk (PTT) instantáneos, salas privadas con PIN, llamadas 1 a 1 y Radar Satelital GPS en vivo." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://radio.auraflowtech.lat/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="bg-tactical-grid"></div>
+
+  <!-- Top Tactical Bar -->
+  <header class="top-bar">
+    <div class="top-bar-inner">
+      <div class="brand-group">
+        <div class="radio-led" id="global-led"></div>
+        <div>
+          <div class="brand-title">PTT + GPS v3.0 <span class="brand-accent">AuraFlow Radio</span></div>
+          <div class="brand-sub">Walkie-Talkie Táctico &amp; Radar Satelital · <a href="https://auraflowtech.lat" target="_blank" rel="noopener">AuraFlow Tech CR</a></div>
+        </div>
+      </div>
+
+      <div class="session-group">
+        <span class="session-badge" id="session-status-text">Sin sesión.</span>
+        <span class="callsign-pill hidden" id="callsign-pill">INDICATIVO: <strong id="header-callsign">OK</strong></span>
+        <button class="btn-top btn-login" id="btn-open-auth" onclick="openAuthModal()">🔑 Iniciar Sesión / Callsign</button>
+        <button class="btn-top btn-logout hidden" id="btn-logout" onclick="logoutRadio()">Salir</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Incoming 1:1 / SOS Alert Banner -->
+  <div id="incoming-call-banner" class="incoming-banner hidden">
+    <div class="incoming-inner">
+      <div class="incoming-title-row">
+        <span class="sos-pulse-icon">🚨</span>
+        <div>
+          <div class="incoming-title" id="incoming-banner-title">LLAMADA DIRECTA 1:1 ENTRANTE.</div>
+          <div class="incoming-desc" id="incoming-banner-desc">Solicitud de enlace táctico entrante</div>
+        </div>
+      </div>
+      <div class="incoming-actions">
+        <button class="btn-incoming btn-incoming-map" id="btn-incoming-map" onclick="viewIncomingLocation()">🗺️ Ver Ubicación SOS</button>
+        <button class="btn-incoming btn-incoming-accept" id="btn-incoming-accept" onclick="respondIncomingCall()">Responder 1:1</button>
+        <button class="btn-incoming btn-incoming-close" onclick="dismissIncomingCall()">Cerrar ✕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Tactical Radio Container -->
+  <main class="radio-layout">
+    <!-- Left Column: Handheld Walkie-Talkie Unit -->
+    <section class="walkie-chassis">
+      <!-- Speaker Grille Decoration -->
+      <div class="speaker-grille">
+        <span></span><span></span><span></span><span></span><span></span>
+      </div>
+
+      <!-- Digital LCD Screen -->
+      <div class="lcd-screen" id="lcd-screen">
+        <div class="lcd-top-row">
+          <span class="lcd-channel-code" id="lcd-channel-code">CH-01</span>
+          <span class="lcd-freq" id="lcd-freq">462.5625 MHz</span>
+          <span class="lcd-mode" id="lcd-mode">MODO: VHF FILTRADO</span>
+        </div>
+
+        <div class="lcd-room-row">
+          <span class="lcd-room-name" id="lcd-room-name">General / Lobby</span>
+          <span class="lcd-room-badge" id="lcd-room-badge">ABIERTO</span>
+        </div>
+
+        <!-- Carrier & Timer Status -->
+        <div class="lcd-carrier-box" id="lcd-carrier-box">
+          <span class="carrier-dot" id="carrier-dot">○</span>
+          <span class="carrier-text" id="carrier-text">STANDBY. ○ ESPERANDO LOGIN...</span>
+          <span class="carrier-timer" id="carrier-timer">0.0s</span>
+        </div>
+
+        <!-- Live Audio VU Spectrum Meter -->
+        <div class="vu-meter" id="vu-meter">
+          <div class="vu-bar"></div><div class="vu-bar"></div><div class="vu-bar"></div><div class="vu-bar"></div>
+          <div class="vu-bar"></div><div class="vu-bar"></div><div class="vu-bar"></div><div class="vu-bar"></div>
+          <div class="vu-bar"></div><div class="vu-bar"></div><div class="vu-bar"></div><div class="vu-bar"></div>
+          <div class="vu-bar"></div><div class="vu-bar"></div><div class="vu-bar"></div><div class="vu-bar"></div>
+        </div>
+
+        <!-- Tactical Status Flags Bar -->
+        <div class="lcd-flags-row">
+          <button class="lcd-flag active" id="flag-call" onclick="triggerCallTone()" title="Enviar Tono de Llamada (Call Tone)">CALL</button>
+          <button class="lcd-flag active" id="flag-vhf" onclick="toggleVhfFilter()" title="Activar/Desactivar Filtro de Radio VHF">VHF ON</button>
+          <button class="lcd-flag active" id="flag-beep" onclick="toggleRogerBeep()" title="Activar/Desactivar Roger Beep">BEEP ON</button>
+          <button class="lcd-flag" id="flag-gps" onclick="toggleMyGps()" title="Estado de Telemetría GPS">GPS OFF</button>
+          <button class="lcd-flag flag-sos" id="flag-sos" onclick="triggerSosAlert()" title="Emitir Alerta SOS Geolocalizada">SOS</button>
+        </div>
+      </div>
+
+      <!-- Central PTT Button Area -->
+      <div class="ptt-zone">
+        <div class="ptt-outer-ring" id="ptt-ring">
+          <button
+            type="button"
+            class="ptt-button"
+            id="btn-ptt"
+            aria-label="Pulsar PTT para transmitir"
+          >
+            <span class="ptt-mic-icon">🎙️</span>
+            <span class="ptt-main-label" id="ptt-main-label">PULSAR PTT</span>
+            <span class="ptt-sub-label" id="ptt-sub-label">PUSH TO TALK</span>
+          </button>
+        </div>
+        <p class="ptt-hint">Mantén presionado o usa kbd <code>[ESPACIO]</code> para hablar.</p>
+      </div>
+
+      <!-- Secondary Tactical Controls -->
+      <div class="tactical-controls-grid">
+        <button type="button" class="btn-tactical" id="btn-handsfree" onclick="toggleHandsFree()">
+          🔒 Trabar Manos Libres
+        </button>
+        <button type="button" class="btn-tactical" id="btn-echotest" onclick="toggleEchoMode()">
+          🔊 Modo Eco (Test)
+        </button>
+        <button type="button" class="btn-tactical btn-gps-quick" id="btn-quick-gps" onclick="toggleMyGps()">
+          📍 Activar Mi GPS
+        </button>
+        <button type="button" class="btn-tactical btn-sos-quick" onclick="triggerSosAlert()">
+          🚨 Alerta SOS GPS
+        </button>
+      </div>
+    </section>
+
+    <!-- Right Column: Multi-Tab Operations Console -->
+    <section class="console-panel">
+      <!-- 4 Main Navigation Tabs -->
+      <div class="console-tabs" role="tablist">
+        <button class="console-tab active" data-tab="canales" onclick="switchTab('canales')">
+          📻 Canales (<span id="count-canales">6</span>)
+        </button>
+        <button class="console-tab" data-tab="operadores" onclick="switchTab('operadores')">
+          👥 Operadores (<span id="count-operadores">1</span>)
+        </button>
+        <button class="console-tab" data-tab="mapa" onclick="switchTab('mapa')">
+          🛰️ Mapa GPS (<span id="count-mapa">0</span>)
+        </button>
+        <button class="console-tab" data-tab="historial" onclick="switchTab('historial')">
+          📼 Historial (<span id="count-historial">0</span>)
+        </button>
+      </div>
+
+      <!-- TAB 1: CANALES -->
+      <div class="tab-pane active" id="tab-canales">
+        <div class="pane-section">
+          <div class="pane-header">
+            <h3>Frecuencias Públicas Abiertas</h3>
+            <span class="pane-hint">Clic para sintonizar instantáneamente</span>
+          </div>
+          <div class="channels-grid" id="channels-list"></div>
+        </div>
+
+        <div class="pane-section private-room-box">
+          <div class="pane-header">
+            <h3>🔐 Sintonizar / Crear Frecuencia Privada con PIN</h3>
+          </div>
+          <p class="private-room-desc">
+            Ingresa un código de sala (ej. <strong>ALFA-1</strong>) y un PIN secreto. Si no existe, se creará al instante; si ya existe, validará el PIN.
+          </p>
+          <form class="private-room-form" onsubmit="handlePrivateRoomSubmit(event)">
+            <div class="form-field">
+              <label for="private-room-code">Código de Sala / Frecuencia</label>
+              <input type="text" id="private-room-code" placeholder="Ej. ALFA-1, COMANDO-CR" required maxlength="18" />
+            </div>
+            <div class="form-field">
+              <label for="private-room-pin">PIN Secreto</label>
+              <input type="password" id="private-room-pin" placeholder="PIN (ej. 1234)" required maxlength="12" />
+            </div>
+            <button type="submit" class="btn-tune-pin">Sintonizar PIN</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- TAB 2: OPERADORES (Radar Global 1 a 1) -->
+      <div class="tab-pane" id="tab-operadores">
+        <div class="pane-section">
+          <div class="pane-header">
+            <h3>Radar Global (Enlace Directo 1 a 1 y Ubicación GPS)</h3>
+            <span class="pane-hint">Conecta directo 1:1 o localiza unidades en el radar</span>
+          </div>
+          <div class="operators-list" id="operators-list"></div>
+        </div>
+      </div>
+
+      <!-- TAB 3: MAPA GPS SATELITAL -->
+      <div class="tab-pane" id="tab-mapa">
+        <div class="pane-section">
+          <div class="radar-header-bar">
+            <div>
+              <h3>🛰️ RADAR SATELITAL GPS EN TIEMPO REAL</h3>
+              <p class="gps-status-banner" id="gps-status-banner">
+                Tu GPS está desactivado. Puedes activarlo con el botón "📍 Activar Mi GPS".
+              </p>
+            </div>
+            <div class="radar-btn-group">
+              <button type="button" class="btn-radar-action btn-radar-gps" id="btn-map-gps" onclick="toggleMyGps()">
+                📍 Activar Mi GPS
+              </button>
+              <button type="button" class="btn-radar-action btn-radar-locate" onclick="locateMeNow()">
+                🎯 Centrar Mi GPS
+              </button>
+              <button type="button" class="btn-radar-action btn-radar-pick" id="btn-map-pick" onclick="toggleMapPickMode()">
+                📌 Fijar en Mapa
+              </button>
+              <button type="button" class="btn-radar-action btn-radar-base" onclick="setBaseCostaRica()">
+                🇨🇷 Fijar Base CR
+              </button>
+            </div>
+          </div>
+
+          <!-- Live GPS Sensor Telemetry Readout -->
+          <div class="gps-telemetry-strip" id="gps-telemetry-strip">
+            <div class="telemetry-metric">
+              <span class="tm-label">ESTADO GPS</span>
+              <strong class="tm-val" id="tm-status">STANDBY</strong>
+            </div>
+            <div class="telemetry-metric">
+              <span class="tm-label">COORDENADAS</span>
+              <strong class="tm-val" id="tm-coords">9.37120, -83.70290</strong>
+            </div>
+            <div class="telemetry-metric">
+              <span class="tm-label">PRECISIÓN</span>
+              <strong class="tm-val" id="tm-acc">±6.0 m</strong>
+            </div>
+            <div class="telemetry-metric">
+              <span class="tm-label">VELOCIDAD</span>
+              <strong class="tm-val" id="tm-speed">0.0 km/h</strong>
+            </div>
+            <div class="telemetry-metric">
+              <span class="tm-label">MODO MAPA</span>
+              <div class="map-layer-pills">
+                <button type="button" class="layer-pill active" id="layer-sat" onclick="setRadarMapLayer('satellite')">🛰️ Satélite</button>
+                <button type="button" class="layer-pill" id="layer-dark" onclick="setRadarMapLayer('dark')">🌑 Radar</button>
+                <button type="button" class="layer-pill" id="layer-osm" onclick="setRadarMapLayer('osm')">🗺️ Calles</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="radar-map" class="radar-map-container"></div>
+
+          <div class="telemetry-units-section">
+            <h4>Unidades con Telemetría GPS Activa <span class="pane-hint">(Clic para centrar o abrir en Google Maps / Waze)</span></h4>
+            <div class="telemetry-units-list" id="telemetry-units-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: HISTORIAL DE TRANSMISIONES -->
+      <div class="tab-pane" id="tab-historial">
+        <div class="pane-section">
+          <div class="pane-header">
+            <h3>📼 Grabaciones de Audio (<span id="history-channel-label">CH-01</span>)</h3>
+            <span class="pane-hint">Reproduce las transmisiones grabadas en esta frecuencia</span>
+          </div>
+          <div class="transmissions-list" id="transmissions-list">
+            <div class="empty-history">Aún no hay transmisiones grabadas en esta frecuencia</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Authentication / Callsign / Password Recovery Modal -->
+  <div class="modal-backdrop hidden" id="auth-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <span class="modal-eyebrow">AURAFLOW ID · RED TÁCTICA PTT v3.0</span>
+          <h2 id="auth-modal-title">Acceso de Operador &amp; Callsign</h2>
+        </div>
+        <button class="modal-close" onclick="closeAuthModal()">✕</button>
+      </div>
+
+      <!-- Quick Founder / Command Access -->
+      <div class="quick-access-box">
+        <div class="quick-access-info">
+          <strong>⚡ Acceso Inmediato Comandante / Demo Real:</strong>
+          <span>Entra con 1 clic como <code>AURA-01</code> (Ing. Santiago Delgado · <code>support@auraflowtech.lat</code>)</span>
+        </div>
+        <button type="button" class="btn-quick-command" onclick="quickLoginFounder()">
+          Entrar como AURA-01
+        </button>
+      </div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-authtab="login" onclick="switchAuthTab('login')">Iniciar Sesión</button>
+        <button class="auth-tab" data-authtab="register" onclick="switchAuthTab('register')">Crear Callsign</button>
+        <button class="auth-tab" data-authtab="recover" onclick="switchAuthTab('recover')">¿Olvidaste tu contraseña?</button>
+      </div>
+
+      <div id="auth-feedback" class="auth-feedback hidden"></div>
+
+      <!-- LOGIN FORM -->
+      <form id="form-login" class="auth-form" onsubmit="submitLogin(event)">
+        <div class="form-field">
+          <label for="login-identifier">Tu Correo o Indicativo (Callsign) *</label>
+          <input type="text" id="login-identifier" placeholder="Ej. AURA-01 o support@auraflowtech.lat" required />
+        </div>
+        <div class="form-field">
+          <label for="login-password">Contraseña *</label>
+          <input type="password" id="login-password" placeholder="••••••••" required />
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" id="login-gps-check" checked />
+          <span>🛰️ Activar opción de GPS en tiempo real al entrar</span>
+        </label>
+        <button type="submit" class="btn-auth-submit">🎙️ Conectar al Radio PTT</button>
+      </form>
+
+      <!-- REGISTER FORM (With 6-Digit Email Verification) -->
+      <form id="form-register" class="auth-form hidden" onsubmit="submitRegister(event)">
+        <div class="form-field">
+          <label for="reg-callsign">Indicativo Táctico (Callsign) *</label>
+          <input type="text" id="reg-callsign" placeholder="Ej. ALFA-01, HALCON-CR, UNIDAD-05" required maxlength="16" />
+        </div>
+        <div class="form-field">
+          <label for="reg-name">Nombre del Operador / Unidad *</label>
+          <input type="text" id="reg-name" placeholder="Ej. Santiago Delgado / Móvil Zona Sur" required />
+        </div>
+        <div class="form-field">
+          <label for="reg-email">Correo Electrónico *</label>
+          <input type="email" id="reg-email" placeholder="operador@auraflowtech.lat" required />
+        </div>
+        <div class="form-field">
+          <label for="reg-password">Contraseña *</label>
+          <input type="password" id="reg-password" placeholder="Mínimo 4 caracteres" required minlength="4" />
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" id="reg-gps-check" checked />
+          <span>🛰️ Activar opción de GPS en tiempo real al entrar</span>
+        </label>
+        <button type="submit" class="btn-auth-secondary" id="btn-reg-send-code">
+          📩 Enviar Código de Verificación a mi Correo
+        </button>
+
+        <div id="reg-verify-box" class="hidden" style="margin-top: 8px; padding-top: 10px; border-top: 1px solid rgba(148,163,184,0.2);">
+          <div class="recover-subtitle" style="margin-bottom: 6px;">Confirmar Cuenta con Código de 6 Dígitos:</div>
+          <div class="form-field">
+            <label for="reg-code">Código de Verificación (6 dígitos enviado desde support@auraflowtech.lat)</label>
+            <input type="text" id="reg-code" placeholder="123456" maxlength="6" />
+          </div>
+          <button type="button" class="btn-auth-submit" style="margin-top: 8px; width: 100%;" onclick="verifyRegistrationCode()">
+            ✅ Verificar Código y Activar Callsign
+          </button>
+        </div>
+      </form>
+
+      <!-- RECOVER PASSWORD FORM -->
+      <div id="form-recover" class="auth-form hidden">
+        <p class="recover-note">
+          Introduce tu <strong>Correo Electrónico o Indicativo (Callsign)</strong>. El sistema despachará un código de seguridad de 6 dígitos desde <code>support@auraflowtech.lat</code>.
+        </p>
+        <div class="form-field">
+          <label for="rec-identifier">Tu Correo o Indicativo (Callsign) *</label>
+          <input type="text" id="rec-identifier" placeholder="Ej. AURA-01 o support@auraflowtech.lat" />
+        </div>
+        <button type="button" class="btn-auth-secondary" onclick="requestRecoveryCode()">
+          📩 Enviar Código de Recuperación
+        </button>
+
+        <hr class="recover-divider" />
+        <div class="recover-subtitle">Ya tengo código:</div>
+        <div class="form-field">
+          <label for="rec-code">Código de Seguridad (6 dígitos enviado a tu correo)</label>
+          <input type="text" id="rec-code" placeholder="123456" maxlength="6" />
+        </div>
+        <div class="form-field">
+          <label for="rec-newpass">Nueva Contraseña (mínimo 6 caracteres)</label>
+          <input type="password" id="rec-newpass" placeholder="Nueva contraseña segura" />
+        </div>
+        <button type="button" class="btn-auth-submit" onclick="verifyRecoveryCode()">
+          🔑 Guardar Contraseña y Entrar al Radio
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="radio-toast" class="radio-toast hidden"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

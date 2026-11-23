@@ -1,0 +1,16 @@
+{
+  "name": "auraflow-radio-ptt",
+  "version": "3.0.0",
+  "description": "PTT + GPS v3.0 AuraFlow Radio — Walkie-Talkie Táctico Web Push-To-Talk & Radar Satelital GPS en Tiempo Real",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "author": "Ing. Santiago Delgado Leiva · AuraFlow Tech CR (support@auraflowtech.lat)",
+  "license": "Proprietary",
+  "dependencies": {
+    "nodemailer": "^10.4.0",
+    "ws": "^8.23.0"
+  }
+}
